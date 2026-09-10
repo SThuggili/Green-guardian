@@ -463,62 +463,67 @@ with tab_chat:
                 key=f"dl_brief_{msg_idx}"
             )
 
-    # Render Chat History
-    for msg_idx, msg in enumerate(st.session_state.messages):
-        with st.chat_message(msg["role"], avatar="🌿" if msg["role"] == "assistant" else "👤"):
-            st.markdown(msg["content"])
-            if msg["role"] == "assistant" and msg_idx > 0:
-                render_assistant_extras(
-                    msg["content"], 
-                    msg.get("citations", []), 
-                    msg.get("audit"), 
-                    msg_idx
-                )
+    # Container for all chat messages
+    chat_container = st.container()
 
-    # Process New Input
+    # Render Historical Messages inside container
+    with chat_container:
+        for msg_idx, msg in enumerate(st.session_state.messages):
+            with st.chat_message(msg["role"], avatar="🌿" if msg["role"] == "assistant" else "👤"):
+                st.markdown(msg["content"])
+                if msg["role"] == "assistant" and msg_idx > 0:
+                    render_assistant_extras(
+                        msg["content"], 
+                        msg.get("citations", []), 
+                        msg.get("audit"), 
+                        msg_idx
+                    )
+
+    # Process New Input (Anchored at the bottom)
     user_input = st.chat_input("Ask any legal, regulatory, or policy question on environmental law...")
     active_prompt = clicked_prompt or user_input
 
     if active_prompt:
-        st.session_state.messages.append({"role": "user", "content": active_prompt})
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(active_prompt)
+        with chat_container:
+            st.session_state.messages.append({"role": "user", "content": active_prompt})
+            with st.chat_message("user", avatar="👤"):
+                st.markdown(active_prompt)
 
-        with st.chat_message("assistant", avatar="🌿"):
-            status_box = st.empty()
-            status_box.markdown("🔍 *1/2 Retrieving statutory provisions across multi-jurisdictional corpus...*")
-            
-            # Map selected jurisdiction
-            j_key = "all"
-            if "u.s." in selected_jurisdiction.lower():
-                j_key = "us"
-            elif "eu" in selected_jurisdiction.lower():
-                j_key = "eu"
-            elif "treaty" in selected_jurisdiction.lower():
-                j_key = "treaty"
+            with st.chat_message("assistant", avatar="🌿"):
+                status_box = st.empty()
+                status_box.markdown("🔍 *1/2 Retrieving statutory provisions across multi-jurisdictional corpus...*")
                 
-            candidates = retrieve_statute_context(active_prompt, jurisdiction=j_key)
-            top_chunks = rerank_chunks(active_prompt, candidates, top_k=Config.TOP_K_RERANKED)
-            
-            status_box.empty()
-            
-            # Real-Time Streaming Generation
-            stream_gen = stream_statutory_answer(active_prompt, top_chunks, model_name=Config.PRIMARY_MODEL)
-            answer_text = st.write_stream(stream_gen)
-            
-            # Fast Deterministic Audit
-            audit_result = verify_and_audit_answer(active_prompt, top_chunks, answer_text, model_name=Config.PRIMARY_MODEL)
-            
-            # Render citations & download button for the new message immediately
-            new_msg_idx = len(st.session_state.messages)
-            render_assistant_extras(answer_text, top_chunks, audit_result, new_msg_idx)
+                # Map selected jurisdiction
+                j_key = "all"
+                if "u.s." in selected_jurisdiction.lower():
+                    j_key = "us"
+                elif "eu" in selected_jurisdiction.lower():
+                    j_key = "eu"
+                elif "treaty" in selected_jurisdiction.lower():
+                    j_key = "treaty"
+                    
+                candidates = retrieve_statute_context(active_prompt, jurisdiction=j_key)
+                top_chunks = rerank_chunks(active_prompt, candidates, top_k=Config.TOP_K_RERANKED)
+                
+                status_box.empty()
+                
+                # Real-Time Streaming Generation
+                stream_gen = stream_statutory_answer(active_prompt, top_chunks, model_name=Config.PRIMARY_MODEL)
+                answer_text = st.write_stream(stream_gen)
+                
+                # Fast Deterministic Audit
+                audit_result = verify_and_audit_answer(active_prompt, top_chunks, answer_text, model_name=Config.PRIMARY_MODEL)
+                
+                # Render citations & download button for the new message immediately
+                new_msg_idx = len(st.session_state.messages)
+                render_assistant_extras(answer_text, top_chunks, audit_result, new_msg_idx)
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer_text,
-            "citations": top_chunks,
-            "audit": audit_result
-        })
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": answer_text,
+                "citations": top_chunks,
+                "audit": audit_result
+            })
 
 # ==============================================================================
 # TAB 2: KNOWLEDGE BASE OF ACTS (52 LEGAL INSTRUMENTS)
