@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.cache/
+
+# Environment Variables & Secrets
+.env
+*.env.local
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# Large temporary archives (allow only latest release zip)
+*.zip
+!green-guardian-final-v4.zip
+*.tar.gz
+*.rar
+
+# OS & Editor files
+~$*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Streamlit local state
+.streamlit/secrets.toml

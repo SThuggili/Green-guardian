@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+*.zip
+*.rar
+.pytest_cache/
+.DS_Store
