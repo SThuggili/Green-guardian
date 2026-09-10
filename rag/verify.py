@@ -82,10 +82,12 @@ def stream_statutory_answer(
     model_name: str = Config.PRIMARY_MODEL
 ):
     """
-    Yields tokens in real-time stream from Gemini 2.5 Flash / Vertex AI.
+    Yields tokens in real-time stream from Gemini 2.5 Flash / Vertex AI safely.
     """
     prompt = build_qa_prompt(question, context_chunks)
     model, provider = get_llm_client(model_name=model_name)
+    has_streamed = False
+    
     if model is not None:
         try:
             response = model.generate_content(
@@ -94,15 +96,25 @@ def stream_statutory_answer(
                 generation_config={"temperature": 0.1, "max_output_tokens": 2048}
             )
             for chunk in response:
-                if chunk and hasattr(chunk, "text") and chunk.text:
-                    yield chunk.text
-            return
+                try:
+                    if hasattr(chunk, "candidates") and chunk.candidates:
+                        for cand in chunk.candidates:
+                            if cand.content and cand.content.parts:
+                                for part in cand.content.parts:
+                                    if hasattr(part, "text") and part.text:
+                                        has_streamed = True
+                                        yield part.text
+                    elif hasattr(chunk, "text") and chunk.text:
+                        has_streamed = True
+                        yield chunk.text
+                except Exception:
+                    continue
         except Exception as e:
-            print(f"Streaming fallback notice: {e}")
+            print(f"Streaming error notice: {e}")
             
-    # Non-stream fallback
-    full_text, _ = generate_statutory_answer(question, context_chunks, model_name=model_name)
-    yield full_text
+    if not has_streamed:
+        full_text, _ = generate_statutory_answer(question, context_chunks, model_name=model_name)
+        yield full_text
 
 def generate_statutory_answer(
     question: str, 

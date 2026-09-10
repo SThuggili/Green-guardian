@@ -404,77 +404,76 @@ with tab_chat:
     elif b6:
         clicked_prompt = "How does European Union environmental legislation regulate corporate sustainability due diligence and cross-border environmental standards?"
 
-    st.markdown("---")
+    def render_assistant_extras(content: str, citations: list, audit: dict, msg_idx: int):
+        """Renders confidence badge, grounded citations expander, and Markdown export button."""
+        if audit:
+            conf_score = audit.get("confidence_score", 95)
+            conf_rank = audit.get("confidence_rank", "High (Verified)")
+            badge_class = "badge-high" if conf_score >= 80 else "badge-mod"
+            
+            st.markdown(f"""
+            <div class="confidence-badge {badge_class}">
+                🛡️ Confidence Rank: <strong>{conf_rank}</strong> ({conf_score}%)
+            </div>
+            """, unsafe_allow_html=True)
 
-    # Container for all messages
-    chat_container = st.container()
+        if citations:
+            with st.expander(f"📜 Grounded Statutory Citations & Verification Audit ({len(citations)} source excerpts)"):
+                c_tab1, c_tab2 = st.tabs(["🏛️ Statutory Citations", "🛡️ Anti-Hallucination Audit"])
+                with c_tab1:
+                    for idx, c in enumerate(citations, 1):
+                        meta = c.get("metadata", {})
+                        act = meta.get("act_title", "Statute")
+                        sec = meta.get("section_number", "Section")
+                        pages = meta.get("pages", [1])
+                        score = c.get("rerank_score", 0.9)
+                        
+                        st.markdown(f"""
+                        <div class="citation-card">
+                            <div class="citation-title">[{idx}] {act} — {sec}</div>
+                            <div class="citation-meta">Page(s): {pages} &bull; Neural Match: {score*100:.1f}% &bull; Source: {meta.get('filename', 'Doc')}</div>
+                            <div class="citation-snippet">{c.get('text', '')[:450]}...</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                with c_tab2:
+                    if audit:
+                        st.markdown(f"""
+                        <div class="audit-box">
+                            <p><strong>Audit Verdict:</strong> <span style="color: #34d399; font-weight: 600;">{audit.get('audit_verdict', 'Verified')}</span></p>
+                            <hr style="border-color: rgba(51, 65, 85, 0.5); margin: 0.6rem 0;">
+                            <p style="font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem;">Verified Statutory Claims:</p>
+                            <ul style="font-size: 0.85rem; color: #cbd5e1; padding-left: 1.2rem;">
+                                {"".join([f"<li>{claim}</li>" for claim in audit.get('supported_claims', [])[:5]])}
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # Export Compliance Brief (Markdown Report)
+            brief_md = f"# Green Guardian: Legal Compliance Brief\n\n**Generated:** {Config.PRIMARY_MODEL} via Google Vertex AI\n**Confidence Rank:** {audit.get('confidence_rank', 'High') if audit else 'High'} ({audit.get('confidence_score', 95) if audit else 95}%)\n\n---\n\n## Statutory Analysis\n\n{content}\n\n---\n\n## Grounded Statutory Citations\n\n"
+            for idx, c in enumerate(citations, 1):
+                m = c.get("metadata", {})
+                brief_md += f"### [{idx}] {m.get('act_title', 'Statute')} — {m.get('section_number', '')}\n- **Citation:** {m.get('citation', '')}\n- **Page:** {m.get('pages', [1])}\n- **Neural Match Score:** {c.get('rerank_score', 0.9)*100:.1f}%\n\n> {c.get('text', '')}\n\n"
+            
+            st.download_button(
+                label="📄 Export Compliance Brief (Markdown)",
+                data=brief_md,
+                file_name=f"Green_Guardian_Compliance_Brief_{msg_idx}.md",
+                mime="text/markdown",
+                key=f"dl_brief_{msg_idx}"
+            )
 
     # Render Chat History
-    with chat_container:
-        for msg_idx, msg in enumerate(st.session_state.messages):
-            with st.chat_message(msg["role"], avatar="🌿" if msg["role"] == "assistant" else "👤"):
-                if msg.get("audit"):
-                    audit = msg["audit"]
-                    conf_score = audit.get("confidence_score", 95)
-                    conf_rank = audit.get("confidence_rank", "High (Verified)")
-                    badge_class = "badge-high" if conf_score >= 80 else "badge-mod"
-                    
-                    st.markdown(f"""
-                    <div class="confidence-badge {badge_class}">
-                        🛡️ Confidence Rank: <strong>{conf_rank}</strong> ({conf_score}%)
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.markdown(msg["content"])
-                
-                # Grounded Citations & Audit Matrix
-                citations = msg.get("citations", [])
-                if citations:
-                    with st.expander(f"📜 Grounded Statutory Citations & Verification Audit ({len(citations)} source excerpts)"):
-                        c_tab1, c_tab2 = st.tabs(["🏛️ Statutory Citations", "🛡️ Anti-Hallucination Audit"])
-                        with c_tab1:
-                            for idx, c in enumerate(citations, 1):
-                                meta = c.get("metadata", {})
-                                act = meta.get("act_title", "Statute")
-                                sec = meta.get("section_number", "Section")
-                                pages = meta.get("pages", [1])
-                                score = c.get("rerank_score", 0.9)
-                                
-                                st.markdown(f"""
-                                <div class="citation-card">
-                                    <div class="citation-title">[{idx}] {act} — {sec}</div>
-                                    <div class="citation-meta">Page(s): {pages} &bull; Neural Match: {score*100:.1f}% &bull; Source: {meta.get('filename', 'Doc')}</div>
-                                    <div class="citation-snippet">{c.get('text', '')[:450]}...</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                        with c_tab2:
-                            if msg.get("audit"):
-                                aud = msg["audit"]
-                                st.markdown(f"""
-                                <div class="audit-box">
-                                    <p><strong>Audit Verdict:</strong> <span style="color: #34d399; font-weight: 600;">{aud.get('audit_verdict', 'Verified')}</span></p>
-                                    <hr style="border-color: rgba(51, 65, 85, 0.5); margin: 0.6rem 0;">
-                                    <p style="font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem;">Verified Statutory Claims:</p>
-                                    <ul style="font-size: 0.85rem; color: #cbd5e1; padding-left: 1.2rem;">
-                                        {"".join([f"<li>{claim}</li>" for claim in aud.get('supported_claims', [])[:5]])}
-                                    </ul>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                    # Export Compliance Brief (Markdown Report)
-                    brief_md = f"# Green Guardian: Legal Compliance Brief\n\n**Generated:** {Config.PRIMARY_MODEL} via Google Vertex AI\n**Confidence Rank:** {msg.get('audit', {}).get('confidence_rank', 'High')} ({msg.get('audit', {}).get('confidence_score', 95)}%)\n\n---\n\n## Statutory Analysis\n\n{msg['content']}\n\n---\n\n## Grounded Statutory Citations\n\n"
-                    for idx, c in enumerate(citations, 1):
-                        m = c.get("metadata", {})
-                        brief_md += f"### [{idx}] {m.get('act_title', 'Statute')} — {m.get('section_number', '')}\n- **Citation:** {m.get('citation', '')}\n- **Page:** {m.get('pages', [1])}\n- **Neural Match Score:** {c.get('rerank_score', 0.9)*100:.1f}%\n\n> {c.get('text', '')}\n\n"
-                    
-                    st.download_button(
-                        label="📄 Export Compliance Brief (Markdown)",
-                        data=brief_md,
-                        file_name=f"Green_Guardian_Compliance_Brief_{msg_idx}.md",
-                        mime="text/markdown",
-                        key=f"dl_brief_{msg_idx}"
-                    )
+    for msg_idx, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"], avatar="🌿" if msg["role"] == "assistant" else "👤"):
+            st.markdown(msg["content"])
+            if msg["role"] == "assistant" and msg_idx > 0:
+                render_assistant_extras(
+                    msg["content"], 
+                    msg.get("citations", []), 
+                    msg.get("audit"), 
+                    msg_idx
+                )
 
     # Process New Input
     user_input = st.chat_input("Ask any legal, regulatory, or policy question on environmental law...")
@@ -482,34 +481,37 @@ with tab_chat:
 
     if active_prompt:
         st.session_state.messages.append({"role": "user", "content": active_prompt})
-        with chat_container:
-            with st.chat_message("user", avatar="👤"):
-                st.markdown(active_prompt)
+        with st.chat_message("user", avatar="👤"):
+            st.markdown(active_prompt)
 
-            with st.chat_message("assistant", avatar="🌿"):
-                status_box = st.empty()
-                status_box.markdown("🔍 *1/2 Retrieving statutory provisions across multi-jurisdictional corpus...*")
+        with st.chat_message("assistant", avatar="🌿"):
+            status_box = st.empty()
+            status_box.markdown("🔍 *1/2 Retrieving statutory provisions across multi-jurisdictional corpus...*")
+            
+            # Map selected jurisdiction
+            j_key = "all"
+            if "u.s." in selected_jurisdiction.lower():
+                j_key = "us"
+            elif "eu" in selected_jurisdiction.lower():
+                j_key = "eu"
+            elif "treaty" in selected_jurisdiction.lower():
+                j_key = "treaty"
                 
-                # Map selected jurisdiction
-                j_key = "all"
-                if "u.s." in selected_jurisdiction.lower():
-                    j_key = "us"
-                elif "eu" in selected_jurisdiction.lower():
-                    j_key = "eu"
-                elif "treaty" in selected_jurisdiction.lower():
-                    j_key = "treaty"
-                    
-                candidates = retrieve_statute_context(active_prompt, jurisdiction=j_key)
-                top_chunks = rerank_chunks(active_prompt, candidates, top_k=Config.TOP_K_RERANKED)
-                
-                status_box.empty()
-                
-                # Real-Time Streaming Generation
-                stream_gen = stream_statutory_answer(active_prompt, top_chunks, model_name=Config.PRIMARY_MODEL)
-                answer_text = st.write_stream(stream_gen)
-                
-                # Fast Deterministic Audit
-                audit_result = verify_and_audit_answer(active_prompt, top_chunks, answer_text, model_name=Config.PRIMARY_MODEL)
+            candidates = retrieve_statute_context(active_prompt, jurisdiction=j_key)
+            top_chunks = rerank_chunks(active_prompt, candidates, top_k=Config.TOP_K_RERANKED)
+            
+            status_box.empty()
+            
+            # Real-Time Streaming Generation
+            stream_gen = stream_statutory_answer(active_prompt, top_chunks, model_name=Config.PRIMARY_MODEL)
+            answer_text = st.write_stream(stream_gen)
+            
+            # Fast Deterministic Audit
+            audit_result = verify_and_audit_answer(active_prompt, top_chunks, answer_text, model_name=Config.PRIMARY_MODEL)
+            
+            # Render citations & download button for the new message immediately
+            new_msg_idx = len(st.session_state.messages)
+            render_assistant_extras(answer_text, top_chunks, audit_result, new_msg_idx)
 
         st.session_state.messages.append({
             "role": "assistant",
@@ -517,7 +519,6 @@ with tab_chat:
             "citations": top_chunks,
             "audit": audit_result
         })
-        st.rerun()
 
 # ==============================================================================
 # TAB 2: KNOWLEDGE BASE OF ACTS (52 LEGAL INSTRUMENTS)
