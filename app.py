@@ -491,7 +491,11 @@ with tab_chat:
 
             with st.chat_message("assistant", avatar="🌿"):
                 status_box = st.empty()
-                status_box.markdown("🔍 *1/2 Retrieving statutory provisions across multi-jurisdictional corpus...*")
+                status_box.markdown("""
+                <div style="display: flex; align-items: center; gap: 8px; color: #34d399; font-size: 0.95rem; padding: 4px 0;">
+                    <span>🔍</span> <em><strong>Step 1/3:</strong> Retrieving statutory provisions across 52 multi-jurisdictional legal instruments...</em>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Map selected jurisdiction
                 j_key = "all"
@@ -505,11 +509,25 @@ with tab_chat:
                 candidates = retrieve_statute_context(active_prompt, jurisdiction=j_key)
                 top_chunks = rerank_chunks(active_prompt, candidates, top_k=Config.TOP_K_RERANKED)
                 
-                status_box.empty()
+                status_box.markdown(f"""
+                <div style="display: flex; align-items: center; gap: 8px; color: #38bdf8; font-size: 0.95rem; padding: 4px 0;">
+                    <span>🧠</span> <em><strong>Step 2/3:</strong> Grounded in <strong>{len(top_chunks)}</strong> statutory provisions. Synthesizing legal compliance analysis via Gemini 2.5 Flash...</em>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Real-Time Streaming Generation
+                # Real-Time Streaming Generation with smooth status transition
+                def stream_with_status_clear(generator, placeholder):
+                    first_token = True
+                    for chunk in generator:
+                        if first_token:
+                            placeholder.empty()
+                            first_token = False
+                        yield chunk
+                    if first_token:
+                        placeholder.empty()
+
                 stream_gen = stream_statutory_answer(active_prompt, top_chunks, model_name=Config.PRIMARY_MODEL)
-                answer_text = st.write_stream(stream_gen)
+                answer_text = st.write_stream(stream_with_status_clear(stream_gen, status_box))
                 
                 # Fast Deterministic Audit
                 audit_result = verify_and_audit_answer(active_prompt, top_chunks, answer_text, model_name=Config.PRIMARY_MODEL)
